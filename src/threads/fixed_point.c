@@ -13,7 +13,7 @@ real add_real_to_integer (real a, int b) {
 }
 
 real mul_real_by_real (real a, real b) {
-    real c = {(a.value * b.value) >> 14};
+    real c = {(((int64_t)a.value) * b.value) >> 14};
     return c;
 }
 
@@ -38,7 +38,7 @@ real sub_real_from_int (int a, real b) {
 }
 
 real div_real_by_real (real a, real b) {
-    real c = {(a.value - b.value) << 14};
+    real c = {((((int64_t)a.value)  << 14 )/ b.value)};
 }
 
 real div_real_by_int (real a, int b) {
