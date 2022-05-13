@@ -59,6 +59,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+static real load_avg;           /* The value of the average load */
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -384,16 +386,14 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return get_int_value (mul_real_by_integer (load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return get_int_value (mul_real_by_integer (thread_current ()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -597,6 +597,27 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+void
+update_recent_cpu (struct thread* th)
+{
+  if (th == idle)
+    return;
+  real new_recent_cpu = mul_real_by_integer (load_avg, 2);
+  new_recent_cpu = div_real_by_real (new_recent_cpu, add_real_to_integer (new_recent_cpu, 1));
+  new_recent_cpu = mul_real_by_real (new_recent_cpu, th->recent_cpu);
+  new_recent_cpu = add_real_to_integer (new_recent_cpu, th->nice);
+  th->recent_cpu = new_recent_cpu;
+}
+
+void
+update_load_avg ()
+{
+  real new_load_avg = mul_real_by_integer (load_avg, 59);
+  new_load_avg = div_real_by_int (new_load_avg, 60);
+  new_load_avg = add_real_to_real (new_load_avg, div_real_by_int (get_real_value ((int) list_size (&ready_list)), 60));
+  load_avg = new_load_avg;
 }
 
 bool
