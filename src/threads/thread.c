@@ -308,7 +308,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem,(list_less_func *) &priority_comparison,NULL);
+    list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_comparison, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -333,9 +333,27 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority) 
+thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  struct thread *cur = thread_current ();
+  enum  intr_level old_level = intr_disable ();
+  if (list_empty (&cur->locks) || new_priority > cur->priority)
+  {
+    cur->priority = new_priority;
+    cur->virtual_priority = new_priority;
+  } 
+  else 
+  {
+    cur->virtual_priority = new_priority;
+  }
+  if (!list_empty (&cur->locks))
+  {
+    struct list_elem *front_elem = list_front(&ready_list);
+    struct thread *ele_thread = list_entry (front_elem, struct thread, elem);
+    if (cur->priority < ele_thread->priority)
+      thread_yield ();
+  }
+  intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -349,15 +367,17 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  if (nice > 20 || nice < -20)
+    return;
+  struct thread *cur = thread_current ();
+  cur->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
