@@ -8,8 +8,10 @@ real add_real_to_real (real a, real b) {
     return c;
 }
 
-real add_real_to_integer (real a, int64_t b) {
-    real c = {a.value + get_real_value (b).value};
+real add_real_to_integer (real a, int64_t b) 
+{
+    real b_ = get_real_value (b);
+    real c = {a.value + b_.value};
     return c;
 }
 
@@ -30,12 +32,14 @@ real sub_real_from_real (real a, real b) {
 }
 
 real sub_int_from_real (real a, int64_t b) {
-    real c = {a.value - get_real_value (b).value};
+    real b_ = get_real_value (b);
+    real c = {a.value - b_.value};
     return c;
 }
 
 real sub_real_from_int (int64_t a, real b) {
-    real c = {get_real_value (a).value - b.value};
+    real a_ = get_real_value (a);
+    real c = {a_.value - b.value};
     return c;
 }
 
@@ -51,7 +55,8 @@ real div_real_by_int (real a, int64_t b) {
 }
 
 real div_int_by_real (int64_t a, real b) {
-    real c = {(get_real_value (a).value / b.value) << 14};
+    real a_ = get_real_value (a);
+    real c = {(a_.value / b.value) << 14};
     return c;
 }
 
@@ -70,7 +75,7 @@ int get_int_value (real a) {
     real b = get_real_value (800);
     printf("\na = %d", get_int_value (a));
     printf("\nb = %d", get_int_value (b));
-    printf("\nreal answer = %ld", mul_real_by_real (a, b).value);
-    printf("\ninteger answer = %d\n", get_int_value (mul_real_by_real (a, b)));
+    printf("\nreal answer = %ld", div_real_by_real (b, a).value);
+    printf("\ninteger answer = %d\n", get_int_value (div_real_by_real (a, b)));
     return 0;
 } */

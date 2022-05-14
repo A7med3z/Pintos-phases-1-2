@@ -57,6 +57,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
+
 bool thread_mlfqs;
 
 static real load_avg;           /* The value of the average load */
@@ -136,9 +137,38 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return ();
+  if (thread_mlfqs)
+  {
+    // each tick add 1 to the current cpu if thread is not idel
+    if (strcmp (t->name, "idle") != 0)
+    {
+      t->recent_cpu = add_real_to_integer (t->recent_cpu, 1); 
+    }
+    // each 1 second update load average ,recu_cpu 
+    if (timer_ticks() % 100 == 0)
+    {
+      load_avg = add_real_to_real (div_real_by_int (mul_real_by_integer (load_avg, 59), 60), get_real_value (list_size (&ready_list) / 60));
+      real decay = div_real_by_real (mul_real_by_integer (load_avg,2), add_real_to_integer (mul_real_by_integer (load_avg, 2), 1));
+      //t->recur_cpu=add_real_to_integer(mul_real_by_real(decay,t->recur_cpu),t->nice);
+      struct list_elem *e;
+      for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+      {
+        struct thread *f = list_entry (e, struct thread, allelem);
+        t->recent_cpu = add_real_to_integer (mul_real_by_real (decay, (f-> recent_cpu)), f->nice);
+      }
+    }
+    //every 4 ticks update periority and all other periorities
+    if (timer_ticks() % 4 == 0)
+    {
+      // t->priority =PRI_MAX -get_int_value(div_real_by_int(t->recur_cpu,4))-t->nice*2;
+        struct list_elem *e;
+      for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+      {
+        struct thread *f = list_entry (e, struct thread, elem);
+        f->priority = PRI_MAX - get_int_value (div_real_by_int(f->recent_cpu, 4)) - f->nice * 2;
+      }
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -599,10 +629,10 @@ allocate_tid (void)
   return tid;
 }
 
-void
+/* void
 update_recent_cpu (struct thread* th)
 {
-  if (th == idle)
+  if (th == idle_thread)
     return;
   real new_recent_cpu = mul_real_by_integer (load_avg, 2);
   new_recent_cpu = div_real_by_real (new_recent_cpu, add_real_to_integer (new_recent_cpu, 1));
@@ -618,17 +648,17 @@ update_load_avg ()
   new_load_avg = div_real_by_int (new_load_avg, 60);
   new_load_avg = add_real_to_real (new_load_avg, div_real_by_int (get_real_value ((int) list_size (&ready_list)), 60));
   load_avg = new_load_avg;
-}
+} */
 
 bool
 tick_comparison (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
 {
   struct thread *th1 = list_entry (a, struct thread, elem);
   struct thread *th2 = list_entry (b, struct thread, elem);
-  if((th1->wake_time)<(th2->wake_time)){
+  if (th1->wake_time < th2->wake_time) {
     return true;
   }
-  else{
+  else {
     return false;
   }
 }
@@ -644,6 +674,72 @@ priority_comparison (const struct list_elem *a,const struct list_elem *b, void *
   return false;
 }
 
+real add_real_to_real (real a, real b) {
+    real c = {a.value + b.value};
+    return c;
+}
+
+real add_real_to_integer (real a, int64_t b) 
+{
+    real b_ = get_real_value (b);
+    real c = {a.value + b_.value};
+    return c;
+}
+
+real mul_real_by_real (real a, real b) {
+    int64_t x = a.value * b.value;
+    real c = {x >> 14};
+    return c;
+}
+
+real mul_real_by_integer (real a, int64_t b) {
+    real c = {a.value * b};
+    return c;
+}
+
+real sub_real_from_real (real a, real b) {
+    real c = {a.value - b.value};
+    return c;
+}
+
+real sub_int_from_real (real a, int64_t b) {
+    real b_ = get_real_value (b);
+    real c = {a.value - b_.value};
+    return c;
+}
+
+real sub_real_from_int (int64_t a, real b) {
+    real a_ = get_real_value (a);
+    real c = {a_.value - b.value};
+    return c;
+}
+
+real div_real_by_real (real a, real b) {
+    int64_t x = a.value << 14;
+    real c = {x / b.value};
+    return c;
+}
+
+real div_real_by_int (real a, int64_t b) {
+    real c = {a.value / b};
+    return c;
+}
+
+real div_int_by_real (int64_t a, real b) {
+    real a_ = get_real_value (a);
+    real c = {(a_.value / b.value) << 14};
+    return c;
+}
+
+
+real get_real_value(int64_t a) {
+    real c = {a << 14};
+    return c;
+}
+
+int get_int_value (real a) {
+    return (a.value >= 0) ? (int) ((a.value + 1 << 13) >> 14) : (int) ((a.value - 1 << 13) >> 14);
+}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

@@ -4,7 +4,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "fixed_point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -82,6 +81,12 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+typedef struct 
+{
+   int64_t value;
+} real;
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -150,5 +155,20 @@ int thread_get_load_avg (void);
 
 bool tick_comparison (const struct list_elem * ,const struct list_elem *, void *aux UNUSED);
 bool priority_comparison (const struct list_elem *, const struct list_elem *, void *aux UNUSED);
+
+real add_real_to_real (real a, real b);
+real add_real_to_integer (real a, int64_t b);
+real mul_real_by_real (real a, real b);
+real mul_real_by_integer (real a, int64_t b);
+real sub_real_from_real (real a, real b);
+real sub_int_from_real (real a, int64_t b);
+real sub_real_from_int (int64_t a, real b);
+real div_real_by_real (real a, real b);
+real div_real_by_int (real a, int64_t b);
+real div_int_by_real (int64_t a, real b);
+
+real get_real_value(int64_t a);
+int get_int_value (real a);
+
 
 #endif /* threads/thread.h */
