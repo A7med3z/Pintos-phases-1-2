@@ -163,10 +163,13 @@ thread_tick (void)
       for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, elem);
-        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu, 4)) - (f->nice * 2);
+        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu,4)) - (f->nice * 2);
       }
     }
   }
+  /* Enforce preemption. */
+  if (++thread_ticks >= TIME_SLICE)
+    intr_yield_on_return ();
 }
 
 /* Prints thread statistics. */
@@ -204,6 +207,8 @@ thread_create (const char *name, int priority,
 
   ASSERT (function != NULL);
 
+  enum intr_level old_level;
+
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
@@ -212,6 +217,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  old_level = intr_disable ();
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -229,7 +235,14 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   /* Add to run queue. */
+  intr_set_level (old_level);
   thread_unblock (t);
+  old_level = intr_disable ();
+  if (t->priority > thread_current ()->priority)
+  {
+    thread_yield ();
+  }
+  intr_set_level (old_level);
 
   return tid;
 }
@@ -508,12 +521,28 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  t->nice = 0;
+  
+  if (thread_mlfqs)
+  {
+    if (strcmp(t->name,"main") == 0)
+      t->recent_cpu = get_real_value (0);
+    else
+      t->recent_cpu = div_real_by_int (get_real_value(thread_get_recent_cpu ()), 100);
+    t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu,4)) - (t->nice * 2);
+    t->nice = thread_get_nice ();
+  }
+  else
+  {
+    t->priority = priority;
+  }
   t->magic = THREAD_MAGIC;
-
-  old_level = intr_disable ();
+  
+  t->virtual_priority = priority;
+  t->blocker = NULL;
+  t->locked = NULL;
+  list_init (&t->locks);
   list_push_back (&all_list, &t->allelem);
-  intr_set_level (old_level);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -681,8 +710,10 @@ locksRemove (struct lock *lock)
   {
     t = list_entry(e, struct thread, donor_lock);
     if (t -> locked == lock)
+    {
       list_remove (e);
-    t->locked = NULL;
+      t->locked = NULL;
+    }
   }
 }
 
