@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -24,18 +25,20 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
-
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
+
+real load_avg;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -57,10 +60,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
-
 bool thread_mlfqs;
-
-static real load_avg;           /* The value of the average load */
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -73,6 +73,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -95,7 +96,6 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -136,34 +136,33 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
-  if (thread_mlfqs)
+  
+  if(thread_mlfqs)
   {
-    // each tick add 1 to the current cpu if thread is not idel
-    if (strcmp (t->name, "idle") != 0)
+    if(strcmp(t->name,"idle")!=0)
     {
       t->recent_cpu = add_real_to_integer (t->recent_cpu, 1); 
     }
-    // each 1 second update load average ,recu_cpu 
-    if (timer_ticks() % 100 == 0)
+    if(timer_ticks () % 100 == 0)
     {
       update_load_avg ();
       struct list_elem *e;
-      for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+           e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, allelem);
         update_recent_cpu (f);
       }
     }
     //every 4 ticks update periority and all other periorities
-    if (timer_ticks() % TIME_SLICE == 0)
+    if(timer_ticks() %4 ==0)
     {
-      // t->priority =PRI_MAX -get_int_value(div_real_by_int(t->recur_cpu,4))-t->nice*2;
-        struct list_elem *e;
-      for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+      struct list_elem *e;
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+           e = list_next (e))
       {
-        struct thread *f = list_entry (e, struct thread, elem);
-        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu,4)) - (f->nice * 2);
+          struct thread *f = list_entry (e, struct thread, allelem);
+          f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu, 4)) - f->nice * 2;
       }
     }
   }
@@ -206,7 +205,6 @@ thread_create (const char *name, int priority,
   tid_t tid;
 
   ASSERT (function != NULL);
-
   enum intr_level old_level;
 
   /* Allocate thread. */
@@ -217,8 +215,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  old_level = intr_disable ();
-
+  old_level = intr_disable();
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -233,16 +230,44 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+  intr_set_level (old_level);
 
   /* Add to run queue. */
-  intr_set_level (old_level);
   thread_unblock (t);
-  old_level = intr_disable ();
+  old_level = intr_disable();
+  if (thread_mlfqs)
+  {
+    if (strcmp(t->name, "idle") != 0)
+    {
+      t->recent_cpu = add_real_to_integer (t->recent_cpu, 1); 
+    } 
+    if (timer_ticks () % 100 == 0)
+    {
+      update_load_avg ();
+      struct list_elem *e;
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+           e = list_next (e))
+      {
+        struct thread *f = list_entry (e, struct thread, allelem);
+        update_recent_cpu (f);
+      }
+    }
+    if (timer_ticks() % 4 == 0)
+    {
+      struct list_elem *e;
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+           e = list_next (e))
+      {
+        struct thread *f = list_entry (e, struct thread, allelem);
+        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu, 4)) - f->nice * 2;
+      }
+    }
+  }
   if (t->priority > thread_current ()->priority)
   {
-    thread_yield ();
+    thread_yield();
   }
-  intr_set_level (old_level);
+  intr_set_level(old_level);
 
   return tid;
 }
@@ -275,11 +300,11 @@ void
 thread_unblock (struct thread *t) 
 {
   enum intr_level old_level;
-
   ASSERT (is_thread (t));
-
   old_level = intr_disable ();
+
   ASSERT (t->status == THREAD_BLOCKED);
+
   list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_comparison, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -352,12 +377,13 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_comparison, NULL);
+    
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
 }
 
-/* Invoke function 'func' on all threads, passing along 'aux'.
+/* Invoke function 'func' on all threads,( passing along 'aux'.
    This function must be called with interrupts off. */
 void
 thread_foreach (thread_action_func *func, void *aux)
@@ -376,27 +402,27 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority)
+thread_set_priority (int new_priority) 
 {
   struct thread *cur = thread_current ();
-  enum  intr_level old_level = intr_disable ();
-  if (list_empty (&cur->locks) || new_priority > cur->priority)
+  enum intr_level old_level = intr_disable ();
+  if (list_empty (&thread_current ()->locks) || new_priority > cur->priority)
   {
     cur->priority = new_priority;
     cur->virtual_priority = new_priority;
-  } 
-  else 
+  }
+  else
   {
     cur->virtual_priority = new_priority;
   }
   if (!list_empty (&ready_list))
   {
-    struct list_elem *front_elem = list_front(&ready_list);
+    struct list_elem *front_elem = list_front (&ready_list);
     struct thread *ele_thread = list_entry (front_elem, struct thread, elem);
-    if (cur->priority < ele_thread->priority)
-      thread_yield ();
+    if(cur->priority < ele_thread->priority)
+      thread_yield();
   }
-  intr_set_level (old_level);
+intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -410,8 +436,6 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  if (nice > 20 || nice < -20)
-    return;
   thread_current ()->nice = nice;
 }
 
@@ -419,7 +443,8 @@ thread_set_nice (int nice UNUSED)
 int
 thread_get_nice (void) 
 {
-  return thread_current ()->nice;
+  return thread_current ()->nice ;
+
 }
 
 /* Returns 100 times the system load average. */
@@ -511,7 +536,6 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
-  enum intr_level old_level;
 
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
@@ -521,23 +545,19 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->nice = 0;
   
-  if (thread_mlfqs)
+  if(thread_mlfqs)
   {
-    if (strcmp(t->name,"main") == 0)
+    t->nice = 0;
+    if(strcmp (t->name, "main") == 0)
       t->recent_cpu = get_real_value (0);
     else
-      t->recent_cpu = div_real_by_int (get_real_value(thread_get_recent_cpu ()), 100);
-    t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu,4)) - (t->nice * 2);
-    t->nice = thread_get_nice ();
+      t->recent_cpu = thread_current ()->recent_cpu;
+    t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu, 4)) - t->nice * 2;  
   }
   else
-  {
     t->priority = priority;
-  }
   t->magic = THREAD_MAGIC;
-  
   t->virtual_priority = priority;
   t->blocker = NULL;
   t->locked = NULL;
@@ -655,58 +675,32 @@ allocate_tid (void)
   return tid;
 }
 
-void
-update_recent_cpu (struct thread* th)
-{
-  if (th == idle_thread)
-    return;
-  real new_recent_cpu = mul_real_by_integer (load_avg, 2);
-  new_recent_cpu = div_real_by_real (new_recent_cpu, add_real_to_integer (new_recent_cpu, 1));
-  new_recent_cpu = mul_real_by_real (new_recent_cpu, th->recent_cpu);
-  new_recent_cpu = add_real_to_integer (new_recent_cpu, th->nice);
-  th->recent_cpu = new_recent_cpu;
-}
-
-void
-update_load_avg ()
-{
-  real new_load_avg = mul_real_by_integer (load_avg, 59);
-  new_load_avg = div_real_by_int (new_load_avg, 60);
-  new_load_avg = add_real_to_real (new_load_avg, div_real_by_int (get_real_value ((int) list_size (&ready_list)), 60));
-  load_avg = new_load_avg;
-}
-
 bool
 tick_comparison (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
 {
-  struct thread *th1 = list_entry (a, struct thread, elem);
-  struct thread *th2 = list_entry (b, struct thread, elem);
-  if (th1->wake_time < th2->wake_time) {
-    return true;
-  }
-  else {
-    return false;
-  }
+    struct thread *th1 = list_entry (a, struct thread, elem);
+    struct thread *th2 = list_entry (b, struct thread, elem);
+    if (th1->wake_time < th2->wake_time)
+      return true;
+    else
+      return false;
 }
 
 bool
 priority_comparison (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
 {
-  struct thread *th1 = list_entry (a, struct thread, elem);
-  struct thread *th2 = list_entry (b, struct thread, elem);
-  if(th1->priority > th2->priority){
-    return true;
-  }
-  return false;
+    struct thread *th1 = list_entry (a, struct thread, elem);
+    struct thread *th2 = list_entry (b, struct thread, elem);
+    if (th1->priority > th2->priority)
+      return true;
+    return false;
 }
 
-void
-locksRemove (struct lock *lock) 
+void locksRemove (struct lock *lock) 
 {
   struct list_elem *e;
   struct thread *t;
-  for (e = list_begin(&thread_current() -> locks); e != list_end(&thread_current() -> locks);
-       e = list_next(e))
+  for (e = list_begin (&thread_current () -> locks); e != list_end (&thread_current () -> locks); e = list_next (e)) 
   {
     t = list_entry(e, struct thread, donor_lock);
     if (t -> locked == lock)
@@ -717,16 +711,33 @@ locksRemove (struct lock *lock)
   }
 }
 
+void
+update_load_avg ()
+{
+  real a = get_real_value (59);
+  a = div_real_by_int (a, 60);
+  a = mul_real_by_real (load_avg, a);
+  load_avg = add_real_to_real (a, div_real_by_int (get_real_value (list_size (&ready_list)), 60));
+}
+
+void
+update_recent_cpu (struct thread *th) 
+{
+  real a = mul_real_by_integer (load_avg, 2);
+  a = div_real_by_real (a, add_real_to_integer(a, 1));
+  a = mul_real_by_real (a, th->recent_cpu);
+  th->recent_cpu = add_real_to_integer (a, th->nice);
+}
+
 real add_real_to_real (real a, real b) {
     real c = {a.value + b.value};
     return c;
 }
 
-real add_real_to_integer (real a, int64_t b) 
+real add_real_to_integer (real a, int b) 
 {
     real b_ = get_real_value (b);
-    real c = {a.value + b_.value};
-    return c;
+    return add_real_to_real (a, b_);
 }
 
 real mul_real_by_real (real a, real b) {
@@ -735,7 +746,7 @@ real mul_real_by_real (real a, real b) {
     return c;
 }
 
-real mul_real_by_integer (real a, int64_t b) {
+real mul_real_by_integer (real a, int b) {
     real c = {a.value * b};
     return c;
 }
@@ -745,16 +756,14 @@ real sub_real_from_real (real a, real b) {
     return c;
 }
 
-real sub_int_from_real (real a, int64_t b) {
+real sub_int_from_real (real a, int b) {
     real b_ = get_real_value (b);
-    real c = {a.value - b_.value};
-    return c;
+    return sub_real_from_real (a, b_);
 }
 
-real sub_real_from_int (int64_t a, real b) {
+real sub_real_from_int (int a, real b) {
     real a_ = get_real_value (a);
-    real c = {a_.value - b.value};
-    return c;
+    return sub_real_from_real (a_, b);
 }
 
 real div_real_by_real (real a, real b) {
@@ -763,26 +772,26 @@ real div_real_by_real (real a, real b) {
     return c;
 }
 
-real div_real_by_int (real a, int64_t b) {
+real div_real_by_int (real a, int b) {
     real c = {a.value / b};
     return c;
 }
 
-real div_int_by_real (int64_t a, real b) {
+real div_int_by_real (int a, real b) {
     real a_ = get_real_value (a);
-    real c = {(a_.value / b.value) << 14};
-    return c;
+    return div_real_by_real (a_, b);
 }
 
 
-real get_real_value(int64_t a) {
-    real c = {a << 14};
+real get_real_value(int a) {
+    real c = {(int64_t) a << 14};
     return c;
 }
 
 int get_int_value (real a) {
     return (a.value >= 0) ? (int) ((a.value + (1 << 13)) >> 14) : (int) ((a.value - (1 << 13)) >> 14);
 }
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

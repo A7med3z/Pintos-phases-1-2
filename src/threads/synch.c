@@ -113,9 +113,8 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+  if (!list_empty (&sema->waiters))
+    thread_unblock (list_entry (list_pop_front (&sema->waiters), struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
   thread_yield ();
@@ -193,19 +192,20 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable ();
-  if (thread_mlfqs)
-  {             
+  
+  if (!thread_mlfqs)
+  {               
     if (lock->holder)
     {
       thread_current ()->blocker = lock->holder;
-      list_push_front (&lock->holder->locks, &thread_current ()->donor_lock);
-      thread_current ()->locked = lock;
       list_insert_ordered (&lock->holder->locks, &thread_current()->donor_lock, priority_comparison, NULL);
+      thread_current ()->locked = lock;
       struct thread *nested = thread_current ();
       while (nested->blocker != NULL)
       {
@@ -217,11 +217,11 @@ lock_acquire (struct lock *lock)
       }
     }
     else
-      thread_current ()->blocker = NULL;
+      thread_current ()->blocker=NULL;
   }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-  intr_set_level (old_level);
+  intr_set_level(old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -245,8 +245,8 @@ lock_try_acquire (struct lock *lock)
   {
     list_insert_ordered (&lock->holder->locks, &thread_current()->donor_lock, priority_comparison, NULL);
     thread_current ()->locked = lock;
-    struct thread *nested = thread_current ();
-    while (nested->blocker != NULL)
+    struct thread *nested = thread_current();
+    while (nested->blocker!=NULL)
     {
       if (nested->priority > nested->blocker->priority)
       {
@@ -268,15 +268,15 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-
+  
   enum intr_level old_level = intr_disable ();
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
-  
+
   if (!thread_mlfqs)
   {
-    if (list_empty (&thread_current()->locks))
+    if (list_empty (&thread_current ()->locks))
       thread_set_priority (thread_current ()->virtual_priority);
     else
     {
@@ -298,7 +298,7 @@ lock_release (struct lock *lock)
       else
         thread_set_priority (thread_current ()->virtual_priority);
     }
-  }
+  }     
   intr_set_level (old_level);
 }
 
@@ -383,9 +383,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters))
+  if (!list_empty (&cond->waiters)) 
   {
-    list_sort (&cond->waiters, priority_comparison, NULL);
+    list_sort (&cond->waiters, cond_comparison, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
   }
