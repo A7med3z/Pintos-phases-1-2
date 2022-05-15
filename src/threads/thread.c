@@ -147,25 +147,23 @@ thread_tick (void)
     // each 1 second update load average ,recu_cpu 
     if (timer_ticks() % 100 == 0)
     {
-      load_avg = add_real_to_real (div_real_by_int (mul_real_by_integer (load_avg, 59), 60), get_real_value (list_size (&ready_list) / 60));
-      real decay = div_real_by_real (mul_real_by_integer (load_avg,2), add_real_to_integer (mul_real_by_integer (load_avg, 2), 1));
-      //t->recur_cpu=add_real_to_integer(mul_real_by_real(decay,t->recur_cpu),t->nice);
+      update_load_avg ();
       struct list_elem *e;
       for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, allelem);
-        t->recent_cpu = add_real_to_integer (mul_real_by_real (decay, (f-> recent_cpu)), f->nice);
+        update_recent_cpu (f);
       }
     }
     //every 4 ticks update periority and all other periorities
-    if (timer_ticks() % 4 == 0)
+    if (timer_ticks() % TIME_SLICE == 0)
     {
       // t->priority =PRI_MAX -get_int_value(div_real_by_int(t->recur_cpu,4))-t->nice*2;
         struct list_elem *e;
       for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, elem);
-        f->priority = PRI_MAX - get_int_value (div_real_by_int(f->recent_cpu, 4)) - f->nice * 2;
+        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu, 4)) - (f->nice * 2);
       }
     }
   }
@@ -378,7 +376,7 @@ thread_set_priority (int new_priority)
   {
     cur->virtual_priority = new_priority;
   }
-  if (!list_empty (&cur->locks))
+  if (!list_empty (&ready_list))
   {
     struct list_elem *front_elem = list_front(&ready_list);
     struct thread *ele_thread = list_entry (front_elem, struct thread, elem);
@@ -401,8 +399,7 @@ thread_set_nice (int nice UNUSED)
 {
   if (nice > 20 || nice < -20)
     return;
-  struct thread *cur = thread_current ();
-  cur->nice = nice;
+  thread_current ()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
@@ -629,7 +626,7 @@ allocate_tid (void)
   return tid;
 }
 
-/* void
+void
 update_recent_cpu (struct thread* th)
 {
   if (th == idle_thread)
@@ -648,7 +645,7 @@ update_load_avg ()
   new_load_avg = div_real_by_int (new_load_avg, 60);
   new_load_avg = add_real_to_real (new_load_avg, div_real_by_int (get_real_value ((int) list_size (&ready_list)), 60));
   load_avg = new_load_avg;
-} */
+}
 
 bool
 tick_comparison (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
@@ -672,6 +669,21 @@ priority_comparison (const struct list_elem *a,const struct list_elem *b, void *
     return true;
   }
   return false;
+}
+
+void
+locksRemove (struct lock *lock) 
+{
+  struct list_elem *e;
+  struct thread *t;
+  for (e = list_begin(&thread_current() -> locks); e != list_end(&thread_current() -> locks);
+       e = list_next(e))
+  {
+    t = list_entry(e, struct thread, donor_lock);
+    if (t -> locked == lock)
+      list_remove (e);
+    t->locked = NULL;
+  }
 }
 
 real add_real_to_real (real a, real b) {
@@ -738,7 +750,7 @@ real get_real_value(int64_t a) {
 }
 
 int get_int_value (real a) {
-    return (a.value >= 0) ? (int) ((a.value + 1 << 13) >> 14) : (int) ((a.value - 1 << 13) >> 14);
+    return (a.value >= 0) ? (int) ((a.value + (1 << 13)) >> 14) : (int) ((a.value - (1 << 13)) >> 14);
 }
 
 /* Offset of `stack' member within `struct thread'.

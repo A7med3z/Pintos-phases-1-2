@@ -106,6 +106,8 @@ struct thread
     int virtual_priority;
     struct list locks;                  /* List of donation locks*/
     struct list_elem donor_lock;        /* Donor element  */
+    struct lock *locked;
+    struct thread *blocker;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -155,6 +157,10 @@ int thread_get_load_avg (void);
 
 bool tick_comparison (const struct list_elem * ,const struct list_elem *, void *aux UNUSED);
 bool priority_comparison (const struct list_elem *, const struct list_elem *, void *aux UNUSED);
+void locksRemove (struct lock *lock) ;
+
+void update_load_avg ();
+void update_recent_cpu (struct thread* th);
 
 real add_real_to_real (real a, real b);
 real add_real_to_integer (real a, int64_t b);
