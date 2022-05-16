@@ -11,8 +11,10 @@ enum thread_status
     THREAD_RUNNING,     /* Running thread. */
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
-    THREAD_DYING        /* About to be destroyed. */
+    THREAD_DYING       /* About to be destroyed. */
+    
   };
+
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
@@ -23,6 +25,26 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+
+typedef struct 
+{
+   int64_t value;
+} real;
+
+real add_real_to_real (real a, real b);
+real add_real_to_integer (real a, int b);
+real mul_real_by_real (real a, real b);
+real mul_real_by_integer (real a, int b);
+real sub_real_from_real (real a, real b);
+real sub_int_from_real (real a, int b);
+real sub_real_from_int (int a, real b);
+real div_real_by_real (real a, real b);
+real div_real_by_int (real a, int b);
+real div_int_by_real (int a, real b);
+
+real get_real_value(int a);
+int get_int_value (real a);
 
 
 /* A kernel thread or user process.
@@ -81,12 +103,6 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-
-typedef struct 
-{
-   int64_t value;
-} real;
-
 struct thread
   {
     /* Owned by thread.c. */
@@ -95,20 +111,19 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int nice;
-    real recent_cpu;
     struct list_elem allelem;           /* List element for all threads list. */
-
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-
+    
     int64_t wake_time;
     int virtual_priority;
-    struct list locks;                  /* List of donation locks*/
-    struct list_elem donor_lock;        /* Donor element  */
+    struct list locks;  /* list of donation locks*/
     struct lock *locked;
+    struct list_elem donor_lock;/* donor element  */
+    real recent_cpu;
+    int nice;
     struct thread *blocker;
-
+     
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -117,7 +132,6 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
-
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -155,26 +169,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool tick_comparison (const struct list_elem * ,const struct list_elem *, void *aux UNUSED);
-bool priority_comparison (const struct list_elem *, const struct list_elem *, void *aux UNUSED);
-void locksRemove (struct lock *lock) ;
-
-void update_load_avg ();
-void update_recent_cpu (struct thread* th);
-
-real add_real_to_real (real a, real b);
-real add_real_to_integer (real a, int b);
-real mul_real_by_real (real a, real b);
-real mul_real_by_integer (real a, int b);
-real sub_real_from_real (real a, real b);
-real sub_int_from_real (real a, int b);
-real sub_real_from_int (int a, real b);
-real div_real_by_real (real a, real b);
-real div_real_by_int (real a, int b);
-real div_int_by_real (int a, real b);
-
-real get_real_value(int a);
-int get_int_value (real a);
-
+ bool tick_comparison (const struct list_elem *,const struct list_elem *, void *aux UNUSED);
+ bool cmp_priority (const struct list_elem *,const struct list_elem *, void *aux UNUSED);
+ void locksRemove (struct lock *lock) ;
 
 #endif /* threads/thread.h */
