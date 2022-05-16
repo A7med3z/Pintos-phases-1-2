@@ -16,11 +16,11 @@ enum thread_status
     
   };
 
-/////////////////////////////
 typedef struct 
 {
    int value;
 } real;
+
 real add_real_to_real (real a, real b);
 real add_real_to_integer (real a, int b);
 real mul_real_by_real (real a, real b);
@@ -35,7 +35,6 @@ real div_real_by_int (real a, int b);
 real get_real_value(int a);
 int get_int_value (real a);
 
-///////////////////
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
