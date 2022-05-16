@@ -403,12 +403,14 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
+///////////////
   if (!list_empty (&cond->waiters)) 
   {
    list_sort (&cond->waiters, cmp_cond, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
   }
+  //////////////////////////
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

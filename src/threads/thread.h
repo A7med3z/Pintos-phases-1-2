@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -15,23 +16,11 @@ enum thread_status
     
   };
 
-
-/* Thread identifier type.
-   You can redefine this to whatever type you like. */
-typedef int tid_t;
-#define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
-
-/* Thread priorities. */
-#define PRI_MIN 0                       /* Lowest priority. */
-#define PRI_DEFAULT 31                  /* Default priority. */
-#define PRI_MAX 63                      /* Highest priority. */
-
-
+/////////////////////////////
 typedef struct 
 {
-   int64_t value;
+   int value;
 } real;
-
 real add_real_to_real (real a, real b);
 real add_real_to_integer (real a, int b);
 real mul_real_by_real (real a, real b);
@@ -41,11 +30,21 @@ real sub_int_from_real (real a, int b);
 real sub_real_from_int (int a, real b);
 real div_real_by_real (real a, real b);
 real div_real_by_int (real a, int b);
-real div_int_by_real (int a, real b);
+
 
 real get_real_value(int a);
 int get_int_value (real a);
 
+///////////////////
+/* Thread identifier type.
+   You can redefine this to whatever type you like. */
+typedef int tid_t;
+#define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
+
+/* Thread priorities. */
+#define PRI_MIN 0                       /* Lowest priority. */
+#define PRI_DEFAULT 31                  /* Default priority. */
+#define PRI_MAX 63                      /* Highest priority. */
 
 /* A kernel thread or user process.
 

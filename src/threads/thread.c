@@ -37,8 +37,11 @@ static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
+real load_avrg;
 
-static real load_avrg;
+
+
+
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -396,27 +399,32 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if (thread_mlfqs)
-    return;
+  //////////////
+  if(thread_mlfqs)
+     return ;
+     ///////////////////////
   struct thread *cur = thread_current ();
   enum  intr_level old_level=intr_disable();
-  if (list_empty (&thread_current ()->locks) || new_priority > cur->priority)
-  {
+ if(list_empty(& thread_current ()->locks)||new_priority>cur->priority)
+ {
   cur->priority = new_priority;
   cur->virtual_priority = new_priority;
-  }
-  else
-  {
-   cur->virtual_priority = new_priority;
-  }
-  if (!list_empty (&ready_list))
-  {
-    struct list_elem *front_elem = list_front (&ready_list);
-    struct thread *ele_thread = list_entry (front_elem, struct thread, elem);
-    if(cur->priority < ele_thread->priority)
-      thread_yield();
-  }
-  intr_set_level(old_level);
+
+ }else{
+   cur->virtual_priority=new_priority;
+ }
+ if(!list_empty(&ready_list))
+ {
+   struct list_elem *front_elem=list_front(&ready_list);
+   struct thread *ele_thread = list_entry (front_elem, struct thread, elem);
+   //check if this thread priority less of max thread will be yield
+    if(cur->priority<ele_thread->priority)
+        thread_yield();
+///////////////////////////
+ }
+
+
+intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -432,30 +440,34 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  thread_current ()->nice = nice;
+  /* Not yet implemented. */
+  thread_current()->nice=nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  return thread_current ()->nice ;
+  /* Not yet implemented. */
+  return thread_current()->nice ;
+
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  return get_int_value (mul_real_by_integer (load_avrg, 100));
+  return get_int_value(mul_real_by_integer(load_avrg,100));
+  /* Not yet implemented. */
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return get_int_value (mul_real_by_integer ((thread_current()->recent_cpu), 100));
+  /* Not yet implemented. */
+  return get_int_value(mul_real_by_integer((thread_current()->recent_cpu),100));
 }
-
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
@@ -542,25 +554,26 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   
-  if(thread_mlfqs)
+   if(thread_mlfqs)
   {
-    t->nice = 0;
-    if (strcmp (t->name, "main") == 0)
-      t->recent_cpu = get_real_value (0);
+    t->nice=0;
+    if(strcmp(t->name,"main")==0)
+      t->recent_cpu = get_real_value(0);
     else
-      t->recent_cpu = thread_current ()->recent_cpu;
-    t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu, 4)) - t->nice * 2;  
-  }
-  else
-  {
-    t->priority = priority;
-  }
+      t->recent_cpu = div_real_by_int(get_real_value(thread_get_recent_cpu()),100);
+
+         t->priority=PRI_MAX - (get_int_value(div_real_by_int(t->recent_cpu,4))-(t->nice*2));
+      
+  }else{t->priority = priority;}
   t->magic = THREAD_MAGIC;
+  //////////////////
   t->virtual_priority = priority;
   t->blocker = NULL;
   t->locked = NULL;
-  list_init (&t->locks);
+    list_init (&t->locks);
   list_push_back (&all_list, &t->allelem);
+  
+  //////////////////
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -677,36 +690,38 @@ allocate_tid (void)
 {
     struct thread *th1 = list_entry (a, struct thread, elem);
     struct thread *th2 = list_entry (b, struct thread, elem);
-    if ((th1->wake_time) < (th2->wake_time))
+    if((th1->wake_time)<(th2->wake_time)){
       return true;
-    return false;
+    }
+    else{
+      return false;
+    }
 }
 bool cmp_priority (const struct list_elem *a,const struct list_elem *b, void *aux UNUSED)
 {
     struct thread *th1 = list_entry (a, struct thread, elem);
     struct thread *th2 = list_entry (b, struct thread, elem);
-    if ((th1->priority) > (th2->priority))
+    if( (th1->priority)>(th2->priority)){
       return true;
+    }
     return false;
 }
-
-void
-locksRemove (struct lock *lock) 
+////////////
+void locksRemove (struct lock *lock) 
 {
   struct list_elem *e;
   struct thread *t;
-  for (e = list_begin (&all_list); e != list_end (&all_list);
-       e = list_next (e))
-  {
+  for (
+    e = list_begin(&thread_current() -> locks);
+    e != list_end(&thread_current() -> locks);
+    e = list_next(e)
+  ) {
     t = list_entry(e, struct thread, donor_lock);
     if (t -> locked == lock)
-    {
-      list_remove (e);
-      t->locked = NULL;
-    }
+    { list_remove(e);
+     t->locked=NULL;}
   }
 }
-
 
 real add_real_to_real (real a, real b) {
     real c = {a.value + b.value};
