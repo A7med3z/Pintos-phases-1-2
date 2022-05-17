@@ -543,7 +543,6 @@ init_thread (struct thread *t, const char *name, int priority)
     {
       t->recent_cpu = div_real_by_int (get_real_value (thread_get_recent_cpu ()), 100);
     }
-    t->nice = 0;
     t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu, 4)) - t->nice * 2;    
   }
   else
@@ -710,9 +709,6 @@ locksRemove (struct lock *lock)
     }
   }
 }
-
-
-
 
 
 /* Offset of `stack' member within `struct thread'.
