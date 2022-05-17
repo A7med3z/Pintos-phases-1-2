@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed_point.h"
 
 
 /* States in a thread's life cycle. */
@@ -16,24 +17,6 @@ enum thread_status
     
   };
 
-typedef struct 
-{
-   int value;
-} real;
-
-real add_real_to_real (real a, real b);
-real add_real_to_integer (real a, int b);
-real mul_real_by_real (real a, real b);
-real mul_real_by_integer (real a, int b);
-real sub_real_from_real (real a, real b);
-real sub_int_from_real (real a, int b);
-real sub_real_from_int (int a, real b);
-real div_real_by_real (real a, real b);
-real div_real_by_int (real a, int b);
-
-
-real get_real_value(int a);
-int get_int_value (real a);
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
