@@ -11,7 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-//#include "devices/timer.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -99,6 +99,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  load_avrg.value = (int64_t) 0;
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -152,13 +153,23 @@ thread_tick (void)
     if(timer_ticks () % 100 == 0)
     {
       // update_load_avg ();
-      load_avrg = add_real_to_real (mul_real_by_real (load_avrg, div_real_by_real (get_real_value (59), get_real_value (60))), div_real_by_int (get_real_value (list_size (&ready_list)), 60));
+      int sizeReady = list_size(&ready_list);
+      if(thread_current() != idle_thread)
+      {
+         sizeReady = sizeReady + 1;
+      }
+      load_avrg = add_real_to_real (
+        mul_real_by_real (div_real_by_real (get_real_value (59), get_real_value (60)), load_avrg),
+                          mul_real_by_integer (div_real_by_real (get_real_value (1),get_real_value (60)), sizeReady));
+      real decay = div_real_by_real (mul_real_by_integer (load_avrg, 2),
+                                     add_real_to_integer (mul_real_by_integer (load_avrg, 2), 1));
       struct list_elem *e;
       for (e = list_begin (&all_list); e != list_end (&all_list);
            e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, allelem);
-        update_recent_cpu (f);
+        f->recent_cpu = add_real_to_integer (mul_real_by_real (f->recent_cpu,decay), f->nice);
+        f->priority = PRI_MAX - get_int_value (div_real_by_int (f->recent_cpu, 4)) - f->nice * 2;
       }
     }
     //every 4 ticks update periority and all other periorities
@@ -382,9 +393,6 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if(thread_mlfqs)
-     return ;
-  
   struct thread *cur = thread_current ();
   enum intr_level old_level = intr_disable ();
   if (list_empty (& thread_current ()->locks) || new_priority > cur->priority)
@@ -530,13 +538,12 @@ init_thread (struct thread *t, const char *name, int priority)
     if (strcmp(t->name, "main") == 0)
     {
       t->recent_cpu = get_real_value (0);
-      t->nice = 0;
     }
     else
     {
       t->recent_cpu = div_real_by_int (get_real_value (thread_get_recent_cpu ()), 100);
-      t->nice = thread_get_nice ();
     }
+    t->nice = 0;
     t->priority = PRI_MAX - get_int_value (div_real_by_int (t->recent_cpu, 4)) - t->nice * 2;    
   }
   else
@@ -704,21 +711,8 @@ locksRemove (struct lock *lock)
   }
 }
 
-void
-update_load_avg ()
-{
-  real a = div_real_by_real (get_real_value (59), get_real_value (60));
-  load_avrg = add_real_to_real (mul_real_by_real (load_avrg, div_real_by_real (get_real_value (59), get_real_value (60))), div_real_by_int (get_real_value (list_size (&ready_list)), 60));
-}
 
-void
-update_recent_cpu (struct thread *th) 
-{
-  real a = mul_real_by_integer (load_avrg, 2);
-  a = mul_real_by_real (a, th->recent_cpu);
-  a = div_real_by_real (a, add_real_to_integer(mul_real_by_integer (load_avrg, 2), 1));
-  th->recent_cpu = add_real_to_integer (a, th->nice);
-}
+
 
 
 /* Offset of `stack' member within `struct thread'.
