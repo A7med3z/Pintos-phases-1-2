@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "fixed_point.h"
+#include "threads/synch.h"
 
 
 /* States in a thread's life cycle. */
@@ -104,6 +105,17 @@ struct thread
     real recent_cpu;
     int nice;
     struct thread *blocker;
+
+    struct list child_list;             //list of child processes
+    struct thread *parent_thread;       //list of parent processes
+    bool child_creation_succ;           //check if thread creation is successful
+    int child_status;                   //set in parent by child during wait()
+    tid_t waiting_on;                   //to check my parent is waiting on me
+    struct semaphore parent_child_sync; //to make syncronization between child and parent
+    int fd_last;                            
+    struct file *executable_file;         
+    struct list open_file;              //fd-to-ptr from current_thread()
+
      
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -113,6 +125,13 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+  struct child_process
+  { 
+   int pid;
+   struct thread *t;
+   struct list_elem elem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

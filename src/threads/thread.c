@@ -244,6 +244,8 @@ thread_create (const char *name, int priority,
   ef = alloc_frame (t, sizeof *ef);
   ef->eip = (void (*) (void)) kernel_thread;
 
+  t->parent_thread = thread_current();
+
   /* Stack frame for switch_threads(). */
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
