@@ -55,7 +55,7 @@ close (int fd)
 void
 halt_wrapper ()
 {
-  //todo
+    shutdown_power_off();
 }
 
 int
@@ -85,13 +85,27 @@ wait_wrapper (struct intr_frame *f)
 bool
 create_wrapper (struct intr_frame *f)
 {
-  //todo
+    char* file = get_char_ptr((char***) (f->esp), 1);
+	validate_void_ptr ((const void*) file);
+	int initial_size = get_int ((int**) (f->esp), 2);
+	validate_void_ptr ((const void*) initial_size);
+    if (file == NULL)
+	    exit (-1);
+    lock_acquire (&sys_lock);
+    bool created = filesys_create (file, initial_size);
+    lock_release (&sys_lock);
+    return created;
 }
 
 bool
 remove_wrapper (struct intr_frame *f)
 {
-  //todo
+    char* file = get_char_ptr ((char***) (f->esp), 1);
+	validate_void_ptr ((const void*) file);
+    lock_acquire (&sys_lock);
+    bool removed = filesys_remove (file);
+    lock_release (&sys_lock);
+    return removed;
 }
 
 int
