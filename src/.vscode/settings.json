@@ -1,3 +1,8 @@
 {
-    "C_Cpp.errorSquiggles": "Disabled"
+    "C_Cpp.errorSquiggles": "Disabled",
+    "files.associations": {
+        "wrapper.h": "c",
+        "process.h": "c",
+        "syscall.h": "c"
+    }
 }
